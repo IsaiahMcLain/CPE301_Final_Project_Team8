@@ -9,6 +9,8 @@
 #define RDA 0x80
 #define TBE 0x20   
 
+#define START_PIN 21
+
 // LCD pins <--> Arduino pins
 const int RS = 11, EN = 12, D4 = 2, D5 = 3, D6 = 4, D7 = 5;
 int right=0,up=0;
@@ -64,10 +66,15 @@ unsigned char* ddr_a = (unsigned char*) 0x21;
 unsigned char* port_a = (unsigned char*) 0x22;
 volatile unsigned char* pin_a = (unsigned char*) 0x20;
 
-// Button Pointers
+// Button Pointers ( Except Start )
 unsigned char* ddr_c = (unsigned char*) 0x27;
 unsigned char* port_c = (unsigned char*) 0x28;
 volatile unsigned char* pin_c = (unsigned char*) 0x26;
+
+// Start button needs different pin for interupt
+volatile unsigned char *port_d = (unsigned char *) 0x2B;
+volatile unsigned char *ddr_d = (unsigned char *) 0x2A;
+volatile unsigned char *pin_d = (unsigned char *) 0x29;
 
 // Timer Pointers
 volatile unsigned char *myTCCR1A = (unsigned char *) 0x80;
@@ -96,38 +103,41 @@ unsigned char input[14]= {'a','b','c','d','e','f','g', 'A', 'B', 'C', 'D', 'E', 
 unsigned int currentTicks = 65535;
 unsigned char timer_running = 0;
 
+// We have four states: 
+// 0: DISABLED - Yellow LED
+// 1: IDLE - Green LED
+// 2: RUNNING - Blue LED
+// 3: ERROR - RED LED
+unsigned int program_state = 0; 
+
 void setup() 
 {           
   // Setup LEDS
   // Set PA6 (Blue), PA4 (Green), PA2 (Yellow), PA0 (Red) as outputs
   *ddr_a |= (1 << 6) | (1 << 4) | (1 << 2) | (1 << 0);
 
-  // Our start state is nothing running which is yellow
-  *port_a |= (0x01 << 2); 
-
   // Set PC5, PC3, PC1 as inputs
   *ddr_c &= ~((1 << 5) | (1 << 3) | (1 << 1)); // inputs
   *port_c |=  (1 << 5) | (1 << 3) | (1 << 1);  // enable pull-ups
+
+  // Set PD0 as input / setup for ISR
+  *port_d |= 0b00000001; // set PD0 to have pull up resistor
+  *ddr_d &= 0b11111110;  // set PD0 as input for button
+
+  // Attach interrupt to start button 
+  attachInterrupt(digitalPinToInterrupt(START_PIN), StartProgram, RISING);
   
   // // setup the Timer for Normal Mode, with the TOV interrupt enabled
   // setup_timer_regs();
   
-  // // Start the UART
-  // U0Init(9600);
+  // Start the UART
+  U0Init(9600);
 }
 
 void loop() 
 {
   // Trigger Idle State
-  if (!(*pin_c & (1 << 5))) {
-    *port_a &= ~(0x01 << 6); 
-    *port_a |= (0x01 << 4); // Green On
-    *port_a &= ~(0x01 << 2);  
-    *port_a &= ~(0x01);
-  }
-
-  // Trigger Idle State from reset button
-  if (!(*pin_c & (1 << 1))) {
+  if (program_state == 1) {
     *port_a &= ~(0x01 << 6); 
     *port_a |= (0x01 << 4); // Green On
     *port_a &= ~(0x01 << 2);  
@@ -135,7 +145,7 @@ void loop()
   }
 
   // Trigger Disabled State
-  if (!(*pin_c & (1 << 3))) {
+  if (program_state == 0) {
     *port_a &= ~(0x01 << 6); 
     *port_a &= ~(0x01 << 4); 
     *port_a |= (0x01 << 2); // Yellow On
@@ -144,6 +154,7 @@ void loop()
 
   // Error State
   // if (!(*pin_c & (1 << 1))) {
+  //   program_state = 3;
   //   *port_a |= (0x01 << 6); // Blue On
   //   *port_a &= ~(0x01 << 4);
   //   *port_a &= ~(0x01 << 2);
@@ -293,22 +304,17 @@ void setup_timer_regs()
 }
 
 
-// TIMER OVERFLOW ISR
-ISR(TIMER1_OVF_vect)
+// Start Button ISR
+void StartProgram()
 {
-  // Stop the Timer
-  *myTCCR1B &= 0xF8;
-  // Load the Count
-  *myTCNT1 =  (unsigned int) (65535 -  (unsigned long) (currentTicks));
-  // Start the Timer
-  *myTCCR1B |= 0x05;
-  // if it's not the STOP amount
-  if(currentTicks != 65535)
-  {
-    // XOR to toggle PB6
-    *portB ^= 0x40;
+  putChar('d');
+  if (program_state == 0) {
+    program_state = 1;
+  } else {
+    program_state = 0;
   }
 }
+
 /*
  * UART FUNCTIONS
  */
