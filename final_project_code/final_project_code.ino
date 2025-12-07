@@ -56,9 +56,17 @@ volatile unsigned char *myUCSR0C = (unsigned char *)0x00C2;
 volatile unsigned int  *myUBRR0  = (unsigned int *) 0x00C4;
 volatile unsigned char *myUDR0   = (unsigned char *)0x00C6;
 
-// GPIO Pointers
 volatile unsigned char *portDDRB = (unsigned char *) 0x24;
 volatile unsigned char *portB =    (unsigned char *) 0x25;
+
+// LED Pointers
+unsigned char* ddr_a = (unsigned char*) 0x22;
+unsigned char* port_a = (unsigned char*) 0x21;
+volatile unsigned char* pin_a = (unsigned char*) 0x20;
+
+// Button Pointers
+unsigned char* ddr_h = (unsigned char*) 0x101;
+unsigned char* port_h = (unsigned char*) 0x102;
 
 // Timer Pointers
 volatile unsigned char *myTCCR1A = (unsigned char *) 0x80;
@@ -89,69 +97,98 @@ unsigned char timer_running = 0;
 
 void setup() 
 {           
-  // set PB6 to output
-  *portDDRB |= 0x40;
+  // Setup LEDS
+  // Set PA6, PA4, PA2, PA0 as outputs
+  *ddr_a |= (1 << 6) | (1 << 4) | (1 << 2) | (1);
+
+  // Start with all four LEDs off
+  *port_a &= ~((1 << 6) | (1 << 4) | (1 << 2) | (1));
   
-  // set PB6 LOW
-  *portB &= 0xDF;
+  // // setup the Timer for Normal Mode, with the TOV interrupt enabled
+  // setup_timer_regs();
   
-  // setup the Timer for Normal Mode, with the TOV interrupt enabled
-  setup_timer_regs();
-  
-  // Start the UART
-  U0Init(9600);
+  // // Start the UART
+  // U0Init(9600);
 }
 
 void loop() 
 {
-  // if we recieve a character from serial
-  if (kbhit()) 
-  {
-    // read the character
-    in_char = getChar();
-    // echo it back
-    putChar(in_char);
-    // if it's the quit character
-    if(in_char == 'q' || in_char == 'Q')
-    {
-      putChar('\n');
-      putChar('o');
-      // set the current ticks to the max value
-      currentTicks = 65535;
-      // if the timer is running
-      if(timer_running)
-      {
-        // stop the timer
-        *myTCCR1B &= 0xF8;
-        // set the flag to not running
-        timer_running = 0;
-        // set PB6 LOW
-        *portB &= 0xBF;
-      }
-    }
-    // otherwise we need to look for the char in the array
-    else
-    {
-      // look up the character
-      for(int i=0; i < 13; i++)
-      {
-        // if it's the character we received...
-        if(in_char == input[i])
-        {
-          // set the ticks
-          currentTicks = ticks[i];
-          // if the timer is not already running, start it
-          if(!timer_running)
-          {
-              // start the timer
-              *myTCCR1B |= 0x05;
-              // set the running flag
-              timer_running = 1;
-          }
-        }
-      }
-    }
-  }
+  *port_a |= (0x01 << 6); // Blue On
+  *port_a &= ~(0x01 << 4);
+  *port_a &= ~(0x01 << 2);
+  *port_a &= ~(0x01);
+
+  delay(1000);
+
+  *port_a &= ~(0x01 << 6); 
+  *port_a |= (0x01 << 4); // Green on
+  *port_a &= ~(0x01 << 2);
+  *port_a &= ~(0x01);
+
+  delay(1000);
+
+  *port_a &= ~(0x01 << 6); 
+  *port_a &= ~(0x01 << 4);
+  *port_a |= (0x01 << 2); // Yellow on
+  *port_a &= ~(0x01);
+
+  delay(1000);
+
+  *port_a &= ~(0x01 << 6); 
+  *port_a &= ~(0x01 << 4);
+  *port_a &= ~(0x01 << 2);
+  *port_a |= (0x01); // Red on
+
+  delay(1000);
+  
+  // // if we recieve a character from serial
+  // if (kbhit()) 
+  // {
+  //   // read the character
+  //   in_char = getChar();
+  //   // echo it back
+  //   putChar(in_char);
+  //   // if it's the quit character
+  //   if(in_char == 'q' || in_char == 'Q')
+  //   {
+  //     putChar('\n');
+  //     putChar('o');
+  //     // set the current ticks to the max value
+  //     currentTicks = 65535;
+  //     // if the timer is running
+  //     if(timer_running)
+  //     {
+  //       // stop the timer
+  //       *myTCCR1B &= 0xF8;
+  //       // set the flag to not running
+  //       timer_running = 0;
+  //       // set PB6 LOW
+  //       *portB &= 0xBF;
+  //     }
+  //   }
+  //   // otherwise we need to look for the char in the array
+  //   else
+  //   {
+  //     // look up the character
+  //     for(int i=0; i < 13; i++)
+  //     {
+  //       // if it's the character we received...
+  //       if(in_char == input[i])
+  //       {
+  //         // set the ticks
+  //         currentTicks = ticks[i];
+  //         // if the timer is not already running, start it
+  //         if(!timer_running)
+  //         {
+  //             // start the timer
+  //             *myTCCR1B |= 0x05;
+  //             // set the running flag
+  //             timer_running = 1;
+  //         }
+  //       }
+  //     }
+  //   }
+  // }
 }
 
 void adc_init() 
