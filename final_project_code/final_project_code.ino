@@ -60,13 +60,14 @@ volatile unsigned char *portDDRB = (unsigned char *) 0x24;
 volatile unsigned char *portB =    (unsigned char *) 0x25;
 
 // LED Pointers
-unsigned char* ddr_a = (unsigned char*) 0x22;
-unsigned char* port_a = (unsigned char*) 0x21;
+unsigned char* ddr_a = (unsigned char*) 0x21;
+unsigned char* port_a = (unsigned char*) 0x22;
 volatile unsigned char* pin_a = (unsigned char*) 0x20;
 
 // Button Pointers
-unsigned char* ddr_h = (unsigned char*) 0x101;
-unsigned char* port_h = (unsigned char*) 0x102;
+unsigned char* ddr_c = (unsigned char*) 0x27;
+unsigned char* port_c = (unsigned char*) 0x28;
+volatile unsigned char* pin_c = (unsigned char*) 0x26;
 
 // Timer Pointers
 volatile unsigned char *myTCCR1A = (unsigned char *) 0x80;
@@ -98,11 +99,15 @@ unsigned char timer_running = 0;
 void setup() 
 {           
   // Setup LEDS
-  // Set PA6, PA4, PA2, PA0 as outputs
-  *ddr_a |= (1 << 6) | (1 << 4) | (1 << 2) | (1);
+  // Set PA6 (Blue), PA4 (Green), PA2 (Yellow), PA0 (Red) as outputs
+  *ddr_a |= (1 << 6) | (1 << 4) | (1 << 2) | (1 << 0);
 
-  // Start with all four LEDs off
-  *port_a &= ~((1 << 6) | (1 << 4) | (1 << 2) | (1));
+  // Our start state is nothing running which is yellow
+  *port_a |= (0x01 << 2); 
+
+  // Set PC5, PC3, PC1 as inputs
+  *ddr_c &= ~((1 << 5) | (1 << 3) | (1 << 1)); // inputs
+  *port_c |=  (1 << 5) | (1 << 3) | (1 << 1);  // enable pull-ups
   
   // // setup the Timer for Normal Mode, with the TOV interrupt enabled
   // setup_timer_regs();
@@ -113,33 +118,53 @@ void setup()
 
 void loop() 
 {
-  *port_a |= (0x01 << 6); // Blue On
-  *port_a &= ~(0x01 << 4);
-  *port_a &= ~(0x01 << 2);
-  *port_a &= ~(0x01);
+  // Trigger Idle State
+  if (!(*pin_c & (1 << 5))) {
+    *port_a &= ~(0x01 << 6); 
+    *port_a |= (0x01 << 4); // Green On
+    *port_a &= ~(0x01 << 2);  
+    *port_a &= ~(0x01);
+  }
 
-  delay(1000);
+  // Trigger Idle State from reset button
+  if (!(*pin_c & (1 << 1))) {
+    *port_a &= ~(0x01 << 6); 
+    *port_a |= (0x01 << 4); // Green On
+    *port_a &= ~(0x01 << 2);  
+    *port_a &= ~(0x01);
+  }
 
-  *port_a &= ~(0x01 << 6); 
-  *port_a |= (0x01 << 4); // Green on
-  *port_a &= ~(0x01 << 2);
-  *port_a &= ~(0x01);
+  // Trigger Disabled State
+  if (!(*pin_c & (1 << 3))) {
+    *port_a &= ~(0x01 << 6); 
+    *port_a &= ~(0x01 << 4); 
+    *port_a |= (0x01 << 2); // Yellow On
+    *port_a &= ~(0x01);
+  }
 
-  delay(1000);
+  // Error State
+  // if (!(*pin_c & (1 << 1))) {
+  //   *port_a |= (0x01 << 6); // Blue On
+  //   *port_a &= ~(0x01 << 4);
+  //   *port_a &= ~(0x01 << 2);
+  //   *port_a &= ~(0x01);
+  // }
 
-  *port_a &= ~(0x01 << 6); 
-  *port_a &= ~(0x01 << 4);
-  *port_a |= (0x01 << 2); // Yellow on
-  *port_a &= ~(0x01);
+  // *port_a &= ~(0x01 << 6); 
+  // *port_a |= (0x01 << 4); // Green on
+  // *port_a &= ~(0x01 << 2);
+  // *port_a &= ~(0x01);
 
-  delay(1000);
 
-  *port_a &= ~(0x01 << 6); 
-  *port_a &= ~(0x01 << 4);
-  *port_a &= ~(0x01 << 2);
-  *port_a |= (0x01); // Red on
+  // *port_a &= ~(0x01 << 6); 
+  // *port_a &= ~(0x01 << 4); 
+  // *port_a |= (0x01 << 2); // Yellow on
+  // *port_a &= ~(0x01);
 
-  delay(1000);
+  // *port_a &= ~(0x01 << 6); 
+  // *port_a &= ~(0x01 << 4);
+  // *port_a &= ~(0x01 << 2);
+  // *port_a |= (0x01); // Red on
   
   // // if we recieve a character from serial
   // if (kbhit()) 
