@@ -4,4 +4,4 @@
 Isaiah McLain 
 Kaiden Farthing 
 
-Contains all project code created for UNR CPE301 Final project. Is a simple swamp cooler created with Arduino components and C.
+Contains all project code created for UNR CPE301 Final project. Is a simple swamp cooler created with Arduino components and C++.
