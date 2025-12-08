@@ -5,11 +5,19 @@
 // Date: 12/12/2025 
 
 #include <LiquidCrystal.h>
+#include "DHT.h"
+#include <stdio.h>
+
 
 #define RDA 0x80
-#define TBE 0x20   
+#define TBE 0x20
 
 #define START_PIN 21
+
+// DHT sensor init
+#define DHT_PIN 10
+#define DHTTYPE DHT11    
+DHT dht(DHT_PIN, DHTTYPE);
 
 // LCD pins <--> Arduino pins
 const int RS = 11, EN = 12, D4 = 2, D5 = 3, D6 = 4, D7 = 5;
@@ -110,6 +118,8 @@ unsigned char timer_running = 0;
 // 3: ERROR - RED LED
 unsigned int program_state = 0; 
 
+unsigned char channel0 = 0;
+
 void setup() 
 {           
   // Setup LEDS
@@ -132,6 +142,12 @@ void setup()
   
   // Start the UART
   U0Init(9600);
+
+  // Setup ADC
+  adc_init();
+
+  // Setup DHT
+  dht.begin();
 }
 
 void loop() 
@@ -153,30 +169,29 @@ void loop()
   }
 
   // Error State
-  // if (!(*pin_c & (1 << 1))) {
-  //   program_state = 3;
-  //   *port_a |= (0x01 << 6); // Blue On
-  //   *port_a &= ~(0x01 << 4);
-  //   *port_a &= ~(0x01 << 2);
-  //   *port_a &= ~(0x01);
-  // }
+  if (program_state == 3){
+    *port_a &= ~(0x01 << 6);
+    *port_a &= ~(0x01 << 4);
+    *port_a &= ~(0x01 << 2);
+    *port_a |= (0x01); // Red On
+  }
 
-  // *port_a &= ~(0x01 << 6); 
-  // *port_a |= (0x01 << 4); // Green on
-  // *port_a &= ~(0x01 << 2);
-  // *port_a &= ~(0x01);
+  // Wait a few seconds between measurements.
+  delay(2000);
 
+  // Reading temperature or humidity takes about 250 milliseconds!
+  // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
+  float h = dht.readHumidity();
 
-  // *port_a &= ~(0x01 << 6); 
-  // *port_a &= ~(0x01 << 4); 
-  // *port_a |= (0x01 << 2); // Yellow on
-  // *port_a &= ~(0x01);
+  // Read temperature as Fahrenheit (isFahrenheit = true)
+  float f = dht.readTemperature(true);
 
-  // *port_a &= ~(0x01 << 6); 
-  // *port_a &= ~(0x01 << 4);
-  // *port_a &= ~(0x01 << 2);
-  // *port_a |= (0x01); // Red on
-  
+  // Check if any reads failed and exit early (to try again).
+  if (isnan(h) || isnan(f)) {
+    program_state = 3;
+    return;
+  }
+
   // // if we recieve a character from serial
   // if (kbhit()) 
   // {
@@ -341,4 +356,9 @@ void putChar(unsigned char U0pdata)
 {
   while((*myUCSR0A & TBE)==0);
   *myUDR0 = U0pdata;
+}
+void putString(char textToPrint[], size_t textToPrintSize){
+  for (int i = 0; i < textToPrintSize; i++) {
+    putChar(textToPrint[i]);
+  }
 }
