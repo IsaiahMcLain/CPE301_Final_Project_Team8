@@ -192,6 +192,26 @@ void loop()
     return;
   }
 
+  unsigned int value = adc_read(channel0);
+
+  unsigned int thirdIntVal = value / 100;
+  unsigned int thirdIntValRemain = value % 100;
+
+  unsigned int secondIntVal = thirdIntValRemain / 10;
+  unsigned int secondIntValRemain = value % 10;
+
+  unsigned int firstIntVal = secondIntValRemain;
+
+  // Convert int to char
+  unsigned char thirdValue =  thirdIntVal + '0';
+  unsigned char secondValue = secondIntVal + '0';
+  unsigned char firstValue = firstIntVal + '0';
+
+  putChar(thirdValue);
+  putChar(secondValue);
+  putChar(firstValue);
+  putChar('\n');
+
   // // if we recieve a character from serial
   // if (kbhit()) 
   // {
