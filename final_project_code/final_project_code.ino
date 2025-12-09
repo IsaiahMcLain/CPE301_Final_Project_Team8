@@ -21,42 +21,6 @@ DHT dht(DHT_PIN, DHTTYPE);
 
 // LCD pins <--> Arduino pins
 const int RS = 11, EN = 12, D4 = 2, D5 = 3, D6 = 4, D7 = 5;
-int right=0,up=0;
-int dir1=0,dir2=0;
-int score = 0;
-int toggle = 0;
-byte customChar[8] = {
-  0b00000,
-  0b01010,
-  0b11111,
-  0b11111,
-  0b01110,
-  0b00100,
-  0b00000,
-  0b00000
-};
-
-byte customChar2[8] = {
-  0b00000,
-  0b00000,
-  0b01110,
-  0b01110,
-  0b01110,
-  0b00000,
-  0b00000,
-  0b00000
-};
-
-byte customChar3[8] = {
-  0b00000,
-  0b00000,
-  0b00000,
-  0b00000,
-  0b00000,
-  0b00000,
-  0b00000,
-  0b00000
-};
 LiquidCrystal lcd(RS, EN, D4, D5, D6, D7);
 
 // UART Pointers
@@ -98,14 +62,7 @@ volatile unsigned char* my_ADCSRB = (unsigned char*) 0x7B;
 volatile unsigned char* my_ADCSRA = (unsigned char*) 0x7A;
 volatile unsigned int*  my_ADC_DATA = (unsigned int*) 0x78;
 
-
 byte in_char;
-//This array holds the tick values
-//calculate all the tick value for the given frequencies and put that in the ticks array
-unsigned int ticks[14]= {18181, 16214, 15277, 13632, 12140, 11461, 10204, 18181, 16214, 15277, 13632, 12140, 11461, 10204};
-//This array holds the characters to be entered, index echos the index of the ticks
-//that means ticks[0] should have the tick value for the character in input[0]
-unsigned char input[14]= {'a','b','c','d','e','f','g', 'A', 'B', 'C', 'D', 'E', 'F', 'G'};
 
 //global ticks counter
 unsigned int currentTicks = 65535;
@@ -148,6 +105,11 @@ void setup()
 
   // Setup DHT
   dht.begin();
+
+  // LCD
+  lcd.begin(16, 2);
+  lcd.clear();
+  lcd.setCursor(0, 0); 
 }
 
 void loop() 
@@ -207,10 +169,10 @@ void loop()
   unsigned char secondValue = secondIntVal + '0';
   unsigned char firstValue = firstIntVal + '0';
 
-  putChar(thirdValue);
-  putChar(secondValue);
-  putChar(firstValue);
-  putChar('\n');
+  lcd.print("Humidity: ");
+  lcd.setCursor(2, 1);
+  lcd.print("Humidity: ");
+
 
   // // if we recieve a character from serial
   // if (kbhit()) 
