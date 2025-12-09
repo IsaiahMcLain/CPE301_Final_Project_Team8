@@ -90,7 +90,7 @@ Stepper myStepper = Stepper(stepsPerRev, 2, 3, 4, 5);
 // Clock 
 RTC_DS1307 rtc;
 unsigned long previousMillis = 0;  // will store last time we ran
-const long interval = 10000;  // interval at which to delay (milliseconds)
+const long interval = 60000;  // interval at which to delay (milliseconds)
 
 void setup() 
 {           
