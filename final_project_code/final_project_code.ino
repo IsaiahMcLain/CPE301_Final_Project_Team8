@@ -15,7 +15,7 @@
 #define RDA 0x80
 #define TBE 0x20
 
-#define START_PIN 21
+#define START_PIN 18
 
 // DHT sensor init
 #define DHT_PIN 10
@@ -37,9 +37,13 @@ volatile unsigned char *portDDRB = (unsigned char *) 0x24;
 volatile unsigned char *portB =    (unsigned char *) 0x25;
 
 // LED Pointers
-unsigned char* ddr_a = (unsigned char*) 0x21;
-unsigned char* port_a = (unsigned char*) 0x22;
+volatile unsigned char* ddr_a = (unsigned char*) 0x21;
+volatile unsigned char* port_a = (unsigned char*) 0x22;
 volatile unsigned char* pin_a = (unsigned char*) 0x20;
+
+// DC Motor Pointers 
+volatile unsigned char* ddr_b = (unsigned char*) 0x24;
+volatile unsigned char* port_b = (unsigned char*) 0x25;
 
 // Button Pointers ( Except Start )
 unsigned char* ddr_c = (unsigned char*) 0x27;
@@ -47,9 +51,9 @@ unsigned char* port_c = (unsigned char*) 0x28;
 volatile unsigned char* pin_c = (unsigned char*) 0x26;
 
 // Start button needs different pin for interupt
-volatile unsigned char *port_d = (unsigned char *) 0x2B;
-volatile unsigned char *ddr_d = (unsigned char *) 0x2A;
-volatile unsigned char *pin_d = (unsigned char *) 0x29;
+volatile unsigned char* pin_d  = (unsigned char*)0x29; 
+volatile unsigned char* ddr_d  = (unsigned char*)0x2A; 
+volatile unsigned char* port_d = (unsigned char*)0x2B; 
 
 // Timer Pointers
 volatile unsigned char *myTCCR1A = (unsigned char *) 0x80;
@@ -65,8 +69,6 @@ volatile unsigned char* my_ADCSRB = (unsigned char*) 0x7B;
 volatile unsigned char* my_ADCSRA = (unsigned char*) 0x7A;
 volatile unsigned int*  my_ADC_DATA = (unsigned int*) 0x78;
 
-byte in_char;
-
 //global ticks counter
 unsigned int currentTicks = 65535;
 unsigned char timer_running = 0;
@@ -78,14 +80,17 @@ unsigned char timer_running = 0;
 // 3: ERROR - RED LED
 unsigned int program_state = 0; 
 
+// ADC channel being used
 unsigned char channel0 = 0;
 
 // Stepper Motor
-const int stepsPerRev = 2038;
+const int stepsPerRev = 300;
 Stepper myStepper = Stepper(stepsPerRev, 2, 3, 4, 5);
 
 // Clock 
 RTC_DS1307 rtc;
+unsigned long previousMillis = 0;  // will store last time we ran
+const long interval = 10000;  // interval at which to delay (milliseconds)
 
 void setup() 
 {           
@@ -95,11 +100,11 @@ void setup()
 
   // Set PC5, PC3, PC1 as inputs
   *ddr_c &= ~((1 << 5) | (1 << 3) | (1 << 1)); // inputs
-  *port_c |=  (1 << 5) | (1 << 3) | (1 << 1);  // enable pull-ups
+  *port_c &=  ~((1 << 3) | (1 << 1));   // enable pull-downs
 
-  // Set PD0 as input / setup for ISR
-  *port_d |= 0b00000001; // set PD0 to have pull up resistor
-  *ddr_d &= 0b11111110;  // set PD0 as input for button
+  // Set PD3 as input / setup for ISR
+  *port_d |= 0b00000100; // set PD3 to have pull up resistor
+  *ddr_d &= 0b11111011;  // set PD3 as input for button
 
   // Attach interrupt to start button 
   attachInterrupt(digitalPinToInterrupt(START_PIN), StartProgram, RISING);
@@ -122,60 +127,120 @@ void setup()
   lcd.setCursor(0, 0); 
 
   // DC Motor
-  pinMode(11, OUTPUT);
-  pinMode(12, OUTPUT);
-  digitalWrite(11, LOW);
-  digitalWrite(12, LOW);
+  *ddr_b |= (1 << 5) | (1 << 6); // Set to output
+  *port_b &=  ~((1 << 5) | (1 << 6)); // Turn motor off to start
 
   // Clock 
   if(!rtc.begin()) { 
     char printArray[18] = "Couldn't find RTC";
     putString(printArray, 18);
   }
+
+  // Stepper
+  myStepper.setSpeed(50);
 }
 
 void loop() 
 {
-  printTime();
-  // Trigger Idle State
+  unsigned long currentMillis = millis();
+  // IDLE MODE
   if (program_state == 1) {
     *port_a &= ~(0x01 << 6); 
     *port_a |= (0x01 << 4); // Green On
     *port_a &= ~(0x01 << 2);  
     *port_a &= ~(0x01);
+
+    // Ensure motor turns off
+    *port_b &=  ~((1 << 5) | (1 << 6));
+
+    // Log info
+    printTime();
+    putString("State IDLE", 10);
+    printTime();
+    putString("Motor OFF", 9);
+    putChar('\n');
   }
 
-  // Trigger Disabled State
+  // DISABLED MODE
   if (program_state == 0) {
     *port_a &= ~(0x01 << 6); 
     *port_a &= ~(0x01 << 4); 
     *port_a |= (0x01 << 2); // Yellow On
     *port_a &= ~(0x01);
+
+    // Ensure motor turns off
+    *port_b &=  ~((1 << 5) | (1 << 6));
+
+    // Turn off stepper 
+    myStepper.step(0);
+
+    // Log info
+    printTime();
+    putString("State DISABLED", 14);
+    printTime();
+    putString("Motor OFF", 9);
+    putChar('\n');
   }
 
-  // Error State
+   // RUNNING MODE
+  if (program_state == 2) {
+    *port_a |= (0x01 << 6);  // Blue On
+    *port_a &= ~(0x01 << 4); 
+    *port_a &= ~(0x01 << 2); 
+    *port_a &= ~(0x01);
+
+    // Turn on Fan
+    *port_b |=  (1 << 6);
+    
+    // Log info
+    printTime();
+    putString("State RUNNING", 13);
+    printTime();
+    putString("Motor ON", 8);
+    putChar('\n');
+  }
+
+  // ERROR MODE
   if (program_state == 3){
     *port_a &= ~(0x01 << 6);
     *port_a &= ~(0x01 << 4);
     *port_a &= ~(0x01 << 2);
     *port_a |= (0x01); // Red On
+
+    // Ensure motor turns off
+    *port_b &=  ~((1 << 5) | (1 << 6));
+
+    // Stepper off
+    myStepper.step(0);
+
+    // Tell user water is low
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Water level low.");
+
+    // Log info
+    printTime();
+    putString("State ERROR", 11);
+    printTime();
+    putString("Motor OFF", 9);
+    putChar('\n');
   }
 
-  myStepper.setSpeed(5);
-  myStepper.step(stepsPerRev);
+  // Trigger DISABLED State
+  if ((*pin_c & (1 << 3)) != 0) {
+    program_state = 0;
+  }
 
-  // Wait a few seconds between measurements.
-  delay(2000);
+  // Trigger IDLE state
+  if ((*pin_c & (1 << 1)) != 0) {
+    program_state = 1;
+  }
 
-  // Reading temperature or humidity takes about 250 milliseconds!
-  // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
-  float h = dht.readHumidity();
-
-  // Read temperature as Fahrenheit (isFahrenheit = true)
-  float f = dht.readTemperature(true);
+  // Read temperature as Celcius
+  float f = dht.readTemperature();
 
   // Check if any reads failed and exit early (to try again).
-  if (isnan(h) || isnan(f)) {
+  if (isnan(f)) {
     program_state = 3;
     return;
   }
@@ -195,80 +260,45 @@ void loop()
   unsigned char secondValue = secondIntVal + '0';
   unsigned char firstValue = firstIntVal + '0';
 
-  lcd.print("Humidity: ");
-  lcd.setCursor(2, 1);
-  lcd.print("Humidity: ");
+  if (currentMillis - previousMillis >= interval && (program_state == 1 || program_state == 2)) {
+    // save the last time message was output
+    previousMillis = currentMillis;
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Water");
+    lcd.setCursor(6, 0);
+    lcd.print(thirdValue);
+    lcd.setCursor(7, 0);
+    lcd.print(secondValue);
+    lcd.setCursor(8, 0);
+    lcd.print(firstValue);
 
-  digitalWrite(11, HIGH);
-  digitalWrite(12, LOW);
-  delay(2000); 
-    //This code will turn Motor A counter-clockwise for 2 sec.
-  digitalWrite(11, LOW);
-  digitalWrite(12, HIGH);
-  delay(2000);
-    
-    //This code will turn Motor B clockwise for 2 sec.
-  digitalWrite(11, LOW);
-  digitalWrite(12, LOW);
-  delay(2000); 
-    //This code will turn Motor B counter-clockwise for 2 sec.
-  digitalWrite(11, LOW);
-  digitalWrite(12, LOW);
-  delay(2000);    
-    
-  //And this code will stop motors
-  digitalWrite(11, LOW);
-  digitalWrite(12, LOW);
+    lcd.setCursor(0, 2);
+    lcd.print("H/T");
+    lcd.setCursor(3, 2);
+    lcd.print(dht.readHumidity()); 
+    lcd.setCursor(9, 2);
+    lcd.print(dht.readTemperature()); 
 
 
-  // // if we recieve a character from serial
-  // if (kbhit()) 
-  // {
-  //   // read the character
-  //   in_char = getChar();
-  //   // echo it back
-  //   putChar(in_char);
-  //   // if it's the quit character
-  //   if(in_char == 'q' || in_char == 'Q')
-  //   {
-  //     putChar('\n');
-  //     putChar('o');
-  //     // set the current ticks to the max value
-  //     currentTicks = 65535;
-  //     // if the timer is running
-  //     if(timer_running)
-  //     {
-  //       // stop the timer
-  //       *myTCCR1B &= 0xF8;
-  //       // set the flag to not running
-  //       timer_running = 0;
-  //       // set PB6 LOW
-  //       *portB &= 0xBF;
-  //     }
-  //   }
-  //   // otherwise we need to look for the char in the array
-  //   else
-  //   {
-  //     // look up the character
-  //     for(int i=0; i < 13; i++)
-  //     {
-  //       // if it's the character we received...
-  //       if(in_char == input[i])
-  //       {
-  //         // set the ticks
-  //         currentTicks = ticks[i];
-  //         // if the timer is not already running, start it
-  //         if(!timer_running)
-  //         {
-  //             // start the timer
-  //             *myTCCR1B |= 0x05;
-  //             // set the running flag
-  //             timer_running = 1;
-  //         }
-  //       }
-  //     }
-  //   }
-  // }
+    // Stepper On
+    myStepper.step(stepsPerRev);
+  }
+
+  // Sensors determined to go to RUNNING state
+  if (f >= 21.5 && value >= 80 && program_state != 0) {
+    program_state = 2;
+  } 
+
+  // If water level is low we go to ERROR state
+  if (value < 80 && program_state != 0) {
+    program_state = 3;
+  } 
+
+  // If temp is too low we want to go to IDLE
+  if (f <= 20.5 && program_state != 0) {
+    program_state = 1;
+  }
 }
 
 void adc_init() 
