@@ -5,6 +5,7 @@
 // Date: 12/12/2025 
 
 #include <LiquidCrystal.h>
+#include <Stepper.h>
 #include "DHT.h"
 #include <stdio.h>
 
@@ -20,7 +21,7 @@
 DHT dht(DHT_PIN, DHTTYPE);
 
 // LCD pins <--> Arduino pins
-const int RS = 11, EN = 12, D4 = 2, D5 = 3, D6 = 4, D7 = 5;
+const int RS = 50, EN = 48, D4 = 44, D5 = 42, D6 = 40, D7 = 38;
 LiquidCrystal lcd(RS, EN, D4, D5, D6, D7);
 
 // UART Pointers
@@ -77,6 +78,10 @@ unsigned int program_state = 0;
 
 unsigned char channel0 = 0;
 
+// Stepper Motor
+const int stepsPerRev = 2038;
+Stepper myStepper = Stepper(stepsPerRev, 2, 3, 4, 5);
+
 void setup() 
 {           
   // Setup LEDS
@@ -110,6 +115,12 @@ void setup()
   lcd.begin(16, 2);
   lcd.clear();
   lcd.setCursor(0, 0); 
+
+  // DC Motor
+  pinMode(11, OUTPUT);
+  pinMode(12, OUTPUT);
+  digitalWrite(11, LOW);
+  digitalWrite(12, LOW);
 }
 
 void loop() 
@@ -137,6 +148,9 @@ void loop()
     *port_a &= ~(0x01 << 2);
     *port_a |= (0x01); // Red On
   }
+
+  myStepper.setSpeed(5);
+  myStepper.step(stepsPerRev);
 
   // Wait a few seconds between measurements.
   delay(2000);
@@ -172,6 +186,27 @@ void loop()
   lcd.print("Humidity: ");
   lcd.setCursor(2, 1);
   lcd.print("Humidity: ");
+
+  digitalWrite(11, HIGH);
+  digitalWrite(12, LOW);
+  delay(2000); 
+    //This code will turn Motor A counter-clockwise for 2 sec.
+  digitalWrite(11, LOW);
+  digitalWrite(12, HIGH);
+  delay(2000);
+    
+    //This code will turn Motor B clockwise for 2 sec.
+  digitalWrite(11, LOW);
+  digitalWrite(12, LOW);
+  delay(2000); 
+    //This code will turn Motor B counter-clockwise for 2 sec.
+  digitalWrite(11, LOW);
+  digitalWrite(12, LOW);
+  delay(2000);    
+    
+  //And this code will stop motors
+  digitalWrite(11, LOW);
+  digitalWrite(12, LOW);
 
 
   // // if we recieve a character from serial
