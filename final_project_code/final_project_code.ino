@@ -8,6 +8,8 @@
 #include <Stepper.h>
 #include "DHT.h"
 #include <stdio.h>
+#include <Wire.h>
+#include <RTClib.h>
 
 
 #define RDA 0x80
@@ -82,6 +84,9 @@ unsigned char channel0 = 0;
 const int stepsPerRev = 2038;
 Stepper myStepper = Stepper(stepsPerRev, 2, 3, 4, 5);
 
+// Clock 
+RTC_DS1307 rtc;
+
 void setup() 
 {           
   // Setup LEDS
@@ -121,10 +126,17 @@ void setup()
   pinMode(12, OUTPUT);
   digitalWrite(11, LOW);
   digitalWrite(12, LOW);
+
+  // Clock 
+  if(!rtc.begin()) { 
+    char printArray[18] = "Couldn't find RTC";
+    putString(printArray, 18);
+  }
 }
 
 void loop() 
 {
+  printTime();
   // Trigger Idle State
   if (program_state == 1) {
     *port_a &= ~(0x01 << 6); 
@@ -339,7 +351,6 @@ void setup_timer_regs()
 // Start Button ISR
 void StartProgram()
 {
-  putChar('d');
   if (program_state == 0) {
     program_state = 1;
   } else {
@@ -377,5 +388,43 @@ void putChar(unsigned char U0pdata)
 void putString(char textToPrint[], size_t textToPrintSize){
   for (int i = 0; i < textToPrintSize; i++) {
     putChar(textToPrint[i]);
+  }
+}
+void printTime() //reads and prints the time
+{
+  DateTime now = rtc.now(); //crashes program if called too often
+  int year = now.year();
+  int month = now.month();
+  int day = now.day();
+  int hour = now.hour();
+  int minute = now.minute();
+  int second = now.second();
+  char time[22] = {
+      month / 10 + '0',
+      month % 10 + '0',
+      '/',
+      day / 10 + '0',
+      day % 10 + '0',
+      '/',
+      (year / 1000) + '0',
+      (year % 1000 / 100) + '0',
+      (year % 100 / 10) + '0',
+      (year % 10) + '0',
+      ' ',
+      'a',
+      't',
+      ' ',
+      hour / 10 + '0',
+      hour % 10 + '0',
+      ':',
+      minute / 10 + '0',
+      minute % 10 + '0',
+      ':',
+      second / 10 + '0',
+      second % 10 + '0',
+  };
+  for (int i = 0; i < 22; i++)
+  {
+    putChar(time[i]);
   }
 }
